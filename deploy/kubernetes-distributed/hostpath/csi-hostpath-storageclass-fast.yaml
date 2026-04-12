@@ -8,6 +8,7 @@ metadata:
     app.kubernetes.io/name: csi-hostpath-fast
     app.kubernetes.io/component: storageclass
 provisioner: hostpath.csi.k8s.io
+allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 parameters:
   kind: fast

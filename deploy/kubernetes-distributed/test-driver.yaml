@@ -17,6 +17,7 @@ DriverInfo:
     nodeExpansion: true
     persistence: true
     singleNodeVolume: true
+    controllerExpansion: true
     snapshotDataSource: true
     topology: true
     capacity: true # will be adapted by deploy.sh based on cluster support for CSIStorageCapacity

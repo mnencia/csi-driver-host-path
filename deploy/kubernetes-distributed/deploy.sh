@@ -126,6 +126,11 @@ SNAPSHOTTER_RBAC_RELATIVE_PATH="csi-snapshotter/rbac-csi-snapshotter.yaml"
 CSI_SNAPSHOTTER_RBAC_YAML="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/$(rbac_version "${BASE_DIR}/hostpath/csi-hostpath-plugin.yaml" csi-snapshotter false)/deploy/kubernetes/${SNAPSHOTTER_RBAC_RELATIVE_PATH}"
 : ${CSI_SNAPSHOTTER_RBAC:=https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/$(rbac_version "${BASE_DIR}/hostpath/csi-hostpath-plugin.yaml" csi-snapshotter "${UPDATE_RBAC_RULES}")/deploy/kubernetes/${SNAPSHOTTER_RBAC_RELATIVE_PATH}}
 
+# TODO: Replace with upstream RBAC URL once kubernetes-csi/external-resizer#573 merges.
+# The custom image tag "node-deployment" is not a valid git ref, so we pin to a known release for RBAC.
+CSI_RESIZER_RBAC_YAML="https://raw.githubusercontent.com/kubernetes-csi/external-resizer/v2.0.0/deploy/kubernetes/rbac.yaml"
+: ${CSI_RESIZER_RBAC:=${CSI_RESIZER_RBAC_YAML}}
+
 # Some images are not affected by *_REGISTRY/*_TAG and IMAGE_* variables.
 # The default is to update unless explicitly excluded.
 update_image () {
@@ -139,7 +144,7 @@ run () {
 
 # rbac rules
 echo "applying RBAC rules"
-for component in CSI_PROVISIONER CSI_SNAPSHOTTER; do
+for component in CSI_PROVISIONER CSI_SNAPSHOTTER CSI_RESIZER; do
     eval current="\${${component}_RBAC}"
     eval original="\${${component}_RBAC_YAML}"
     if [ "$current" != "$original" ]; then
