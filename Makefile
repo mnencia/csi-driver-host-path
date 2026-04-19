@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CMDS=hostpathplugin
+CMDS=hostpathplugin csi-topology-coordinator
 all: build
 
 include release-tools/build.make

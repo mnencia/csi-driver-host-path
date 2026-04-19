@@ -4,6 +4,8 @@
 
 StorageClass:
   FromExistingClassName: csi-hostpath-fast
+SnapshotClass:
+  FromExistingClassName: csi-hostpath-snapclass
 DriverInfo:
   Name: hostpath.csi.k8s.io
   SupportedSizeRange:
@@ -15,6 +17,7 @@ DriverInfo:
     nodeExpansion: true
     persistence: true
     singleNodeVolume: true
+    snapshotDataSource: true
     topology: true
     capacity: true # will be adapted by deploy.sh based on cluster support for CSIStorageCapacity
   TopologyKeys:

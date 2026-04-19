@@ -1,0 +1,167 @@
+# csi-topology-coordinator pre-sets volume.kubernetes.io/selected-node on
+# PVCs whose data source lives on a specific node, so kube-scheduler pins
+# the consuming pod directly to that node via the volume-binding plugin's
+# fast-path. This removes the cross-node snapshot-restore gap in the
+# distributed deployment.
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: csi-topology-coordinator-sa
+  namespace: default
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: serviceaccount
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: csi-topology-coordinator-role
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: cluster-role
+rules:
+# PVCs and StorageClasses are read via informers (list+watch) plus
+# patched (PVC only) when a redirect is needed.
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+# PVs and VolumeSnapshot[Content]s are read on-demand via Get only
+# (no informer), so list/watch are not required.
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources: ["volumesnapshots", "volumesnapshotcontents"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: csi-topology-coordinator-binding
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: csi-topology-coordinator-role
+subjects:
+- kind: ServiceAccount
+  name: csi-topology-coordinator-sa
+  namespace: default
+---
+# Lease for leader election between coordinator replicas.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: csi-topology-coordinator-leaderelection
+  namespace: default
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: role
+rules:
+# The coordinator only needs to manage its own Lease, so narrow
+# get/update/patch to that specific name.
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["create"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  resourceNames: ["csi-topology-coordinator"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: csi-topology-coordinator-leaderelection
+  namespace: default
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: csi-topology-coordinator-leaderelection
+subjects:
+- kind: ServiceAccount
+  name: csi-topology-coordinator-sa
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csi-topology-coordinator
+  namespace: default
+  labels:
+    app.kubernetes.io/instance: hostpath.csi.k8s.io
+    app.kubernetes.io/part-of: csi-driver-host-path
+    app.kubernetes.io/name: csi-topology-coordinator
+    app.kubernetes.io/component: coordinator
+spec:
+  # Single replica is enough; leader election supports scaling to >1 for HA.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: hostpath.csi.k8s.io
+      app.kubernetes.io/part-of: csi-driver-host-path
+      app.kubernetes.io/name: csi-topology-coordinator
+      app.kubernetes.io/component: coordinator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: hostpath.csi.k8s.io
+        app.kubernetes.io/part-of: csi-driver-host-path
+        app.kubernetes.io/name: csi-topology-coordinator
+        app.kubernetes.io/component: coordinator
+    spec:
+      serviceAccountName: csi-topology-coordinator-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # TODO: replace with registry.k8s.io/sig-storage/csi-topology-coordinator
+        # once upstream publishes this image.
+        - name: csi-topology-coordinator
+          image: ghcr.io/mnencia/csi-topology-coordinator:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - -v=5
+            - --driver-name=hostpath.csi.k8s.io
+            - --topology-key=topology.hostpath.csi/node
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
