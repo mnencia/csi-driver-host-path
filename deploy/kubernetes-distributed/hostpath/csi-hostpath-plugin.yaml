@@ -176,6 +176,7 @@ spec:
             - --nodeid=$(KUBE_NODE_NAME)
             - --capacity=slow=10Gi
             - --capacity=fast=100Gi
+            - --node-deployment=true
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock

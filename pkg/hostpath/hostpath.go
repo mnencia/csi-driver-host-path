@@ -89,6 +89,7 @@ type Config struct {
 	MaxVolumeExpansionSizeNode    int64
 	CheckVolumeLifecycle          bool
 	EnableListSnapshots           bool
+	NodeDeployment                bool
 }
 
 var (
@@ -299,6 +300,12 @@ func hostPathIsEmpty(p string) (bool, error) {
 func (hp *hostPath) loadFromSnapshot(size int64, snapshotId, destPath string, mode state.AccessType) error {
 	snapshot, err := hp.state.GetSnapshotByID(snapshotId)
 	if err != nil {
+		// In a node-deployment setup the snapshot may live on a different
+		// node. Return ResourceExhausted so the external-provisioner clears
+		// selected-node and the scheduler retries on another node.
+		if hp.config.NodeDeployment && status.Code(err) == codes.NotFound {
+			return status.Errorf(codes.ResourceExhausted, "snapshot %v is not present on this node", snapshotId)
+		}
 		return err
 	}
 	if !snapshot.ReadyToUse {
@@ -333,6 +340,11 @@ func (hp *hostPath) loadFromSnapshot(size int64, snapshotId, destPath string, mo
 func (hp *hostPath) loadFromVolume(size int64, srcVolumeId, destPath string, mode state.AccessType) error {
 	hostPathVolume, err := hp.state.GetVolumeByID(srcVolumeId)
 	if err != nil {
+		// Same rationale as loadFromSnapshot: a clone source volume may live
+		// on a different node in a node-deployment setup.
+		if hp.config.NodeDeployment && status.Code(err) == codes.NotFound {
+			return status.Errorf(codes.ResourceExhausted, "volume %v is not present on this node", srcVolumeId)
+		}
 		return err
 	}
 	if hostPathVolume.VolSize > size {

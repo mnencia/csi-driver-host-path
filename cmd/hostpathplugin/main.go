@@ -67,6 +67,7 @@ func main() {
 	flag.Int64Var(&cfg.MaxVolumeExpansionSizeNode, "max-volume-size-node", 0, "Maximum allowed size of volume when expanded on the node. Defaults to same size as max-volume-size.")
 
 	flag.Int64Var(&cfg.AttachLimit, "attach-limit", 0, "Maximum number of attachable volumes on a node. Zero refers to no limit.")
+	flag.BoolVar(&cfg.NodeDeployment, "node-deployment", false, "Indicates the driver is part of a per-node (DaemonSet) deployment. When true, CreateVolume returns ResourceExhausted (instead of NotFound) if the requested content source is not present on this node, so the external-provisioner reschedules to another node.")
 	showVersion := flag.Bool("version", false, "Show version.")
 	// The proxy-endpoint option is intended to used by the Kubernetes E2E test suite
 	// for proxying incoming calls to the embedded mock CSI driver.
